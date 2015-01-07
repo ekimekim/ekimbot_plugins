@@ -24,8 +24,12 @@ class AnagramsCommand(ClientPlugin):
 	def anagrams(self, msg, *args):
 		word = ' '.join(args)
 		count = tuple(sorted(Counter(word.lower()).items()))
-		matches = words.get(count, set()) - {word}
+		matches = filter(lambda w: w.lower() != word.lower(), words.get(count, set()))
 		if matches:
 			self.reply(msg, "Anagrams of {}: {}".format(word, ', '.join(matches)))
 		else:
 			self.reply(msg, "No anagrams of {}".format(word))
+
+	@CommandHandler('anagram', 1)
+	def anagram(self, msg, *args):
+		return self.anagrams(msg, *args)
