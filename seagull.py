@@ -18,7 +18,4 @@ class SeagullCommand(ClientPlugin):
 			else:
 				depth -= 1
 			out += c
-		if 'verbose' in args:
-			import simplejson as j
-			out = j.dumps(j.loads(out), indent=4)
 		self.reply(msg, out)
