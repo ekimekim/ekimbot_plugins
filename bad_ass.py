@@ -9,7 +9,7 @@ class BadAssPlugin(ClientPlugin):
 	"""Replaces "X-ass Y" with "X ass-Y"
 	"""
 	name = 'bad_ass'
-	pattern = re.compile(r'(\w+)[-_]?ass (\w+)')
+	pattern = re.compile(r'(\w+)[-_]ass (\w+)')
 
 	@Handler(command='PRIVMSG')
 	def find_ass(self, client, msg):
