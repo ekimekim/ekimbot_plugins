@@ -1,8 +1,9 @@
 
-from ekimbot.botplugin import BotPlugin
+from collections import Counter
 
 import gevent
-from collections import Counter
+
+from ekimbot.botplugin import BotPlugin
 
 
 class ModuleMonitor(BotPlugin):

@@ -1,7 +1,9 @@
 
 import os
 from collections import Counter
-from ekimbot.botplugin import ClientPlugin, CommandHandler
+
+from ekimbot.botplugin import ClientPlugin
+from ekimbot.commands import CommandHandler
 
 words = {}
 def load_dict():

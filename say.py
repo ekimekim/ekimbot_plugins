@@ -1,5 +1,6 @@
 
-from ekimbot.botplugin import ClientPlugin, CommandHandler
+from ekimbot.botplugin import ClientPlugin
+from ekimbot.commands import CommandHandler
 
 
 class SayCommand(ClientPlugin):
