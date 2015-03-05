@@ -4,15 +4,20 @@ which will email them if the regex of their choice is mentioned in chat, and the
 within a time period."""
 
 import re
+import time
 
 import gevent
 
-from decay import DecayCounter
+from ratelimit import DecayRateLimit, BlockingRateLimit
 from girc import Handler
 
 from ekimbot.botplugin import ClientPlugin
-from ekimbot.commands import CommandHandler
 from ekimbot.core_plugins.logalert import send
+from ekimbot.utils import pretty_interval
+
+
+class BlockingDecayRateLimit(DecayRateLimit, BlockingRateLimit):
+	pass
 
 
 # XXX logging
@@ -20,9 +25,7 @@ class NotifyPlugin(ClientPlugin):
 	name = 'notify'
 
 	# this rate counter shared by all instances decays over time and must not exceed RATE_LIMIT
-	rate_counter = DecayCounter(600) # half-life of 10min
-	RATE_LIMIT = 20
-	RETRY_INTERVAL = 60
+	rate_limit = BlockingDecayRateLimit(20, 600)
 
 	# XXX hard-coded for now - *THIS SHOULD BE PER CLIENT*
 	store = {
@@ -31,9 +34,11 @@ class NotifyPlugin(ClientPlugin):
 		}
 	}
 
-	# XXX should be per client
 	# maps {email : (messages, greenlet)}
-	pending = {}
+	pending = None
+
+	def init(self):
+		self.pending = {}
 
 	@Handler(command='PRIVMSG')
 	def check_message(self, client, msg):
@@ -57,14 +62,15 @@ class NotifyPlugin(ClientPlugin):
 	def waiter(self, email, timeout):
 		gevent.sleep(timeout)
 		messages, greenlet = self.pending.pop(email)
-		if self.rate_counter.get() >= self.RATE_LIMIT:
-			self.pending[email] = messages, gevent.spawn(self.waiter, email, self.RETRY_INTERVAL)
-		self.rate_counter.add(1)
-		send(email, "ekimbot: You were mentioned in IRC on {self.client.hostname}:{self.client.port}".format(self=self),
-			'\n'.join(
-				"{msg.target} <{msg.sender}>: {msg.payload}".format(msg=message)
-			for message in messages)
-		)
+		with self.rate_limit:
+			subject = "ekimbot: You were mentioned in IRC on {self.client.hostname}:{self.client.port}".format(self=self),
+			body_format = "{msg.target} [{time} ({time_ago} ago)] <{msg.sender}>: {msg.payload}"
+			time_format = "%F %T"
+			body = '\n'.join(body_format.format(msg=msg,
+												time=time.strptime(time_format, time.gm_time(msg.received_at)),
+												time_ago=pretty_interval(msg.time_since()))
+							 for msg in messages)
+			send(email, subject, body)
 
 	def clear(self, email):
 		messages, greenlet = self.pending.pop(email)
