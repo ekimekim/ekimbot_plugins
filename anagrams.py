@@ -10,7 +10,7 @@ from ekimbot.commands import CommandHandler
 
 
 words = AsyncResult()
-# TODO logging here concerning async load
+loader = None
 
 def load_dict():
 	global words
@@ -27,11 +27,14 @@ def load_dict():
 				gevent.sleep(0.01) # let other greenlets act
 	words.set(_words)
 
-gevent.spawn(load_dict)
-
 
 class AnagramsCommand(ClientPlugin):
 	name = 'anagrams'
+
+	def init():
+		global loader
+		if not (loader or words.ready()):
+			loader = gevent.spawn(load_dict)
 
 	@CommandHandler('anagrams', 1)
 	def anagrams(self, msg, *args):
