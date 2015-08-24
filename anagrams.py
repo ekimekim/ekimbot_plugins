@@ -1,7 +1,6 @@
 
 import os
 import sys
-from collections import Counter
 
 import gevent
 from gevent.event import AsyncResult
@@ -34,7 +33,7 @@ def load_dict():
 class AnagramsCommand(ClientPlugin):
 	name = 'anagrams'
 
-	def init():
+	def init(self):
 		global loader
 		if not (loader or words.ready()):
 			loader = gevent.spawn(load_dict)
