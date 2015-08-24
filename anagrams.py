@@ -23,7 +23,9 @@ def load_dict():
 			lines = f.read()
 		for n, line in enumerate(lines.strip().split('\n')):
 			key = "".join(sorted(line.lower()))
-			_words.setdefault(key, set()).add(line)
+			matches = _words.setdefault(key, [])
+			if line not in matches:
+				matches.append(line)
 			if n % 10000 == 0:
 				gevent.sleep(0.01) # let other greenlets act
 	words.set(_words)
@@ -53,7 +55,7 @@ class AnagramsCommand(ClientPlugin):
 
 def find_anagrams(word):
 	key = "".join(sorted(word.lower()))
-	matches = filter(lambda w: w.lower() != word.lower(), words.get().get(key, set()))
+	matches = filter(lambda w: w.lower() != word.lower(), words.get().get(key, []))
 	return matches
 
 
