@@ -58,6 +58,13 @@ def find_anagrams(word):
 
 
 if __name__ == '__main__':
+
+	if sys.argv[1:]:
+		load_dict()
+		for word in sys.argv[1:]:
+			print "{}: {}".format(word, ", ".join(find_anagrams(word)))
+		sys.exit()
+
 	from monotonic import monotonic
 	def get_mem():
 		with open('/proc/self/stat') as f:
