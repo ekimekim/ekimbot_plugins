@@ -1,7 +1,9 @@
 
+import logging
 import time
 
 import gevent
+import requests
 import twitch
 
 from ekimbot.botplugin import ClientPlugin
@@ -48,11 +50,16 @@ class AutoHost(ClientPlugin):
 			self.worker.kill(block=False)
 
 	def poll_loop(self):
+		IGNORE_CODES = {502, 503}
 		while True:
 			try:
 				self.check()
-			except Exception:
-				self.logger.exception("Failed to check for new rule matches")
+			except Exception as e:
+				if isinstance(e, requests.HTTPError) and e.response.status_code in IGNORE_CODES:
+					level = logging.INFO
+				else:
+					level = logging.ERROR
+				self.logger.log(level, "Failed to check for new rule matches", exc_info=True)
 			gevent.sleep(self.config.interval)
 
 	def check(self):
