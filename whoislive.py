@@ -27,6 +27,7 @@ class WhoIsLive(ClientPlugin):
 
 	@CommandHandler("live", 0)
 	def whoislive(self, msg):
+		"""List all currently live streamers from follow list"""
 		found = False
 		errors = False
 		try:
