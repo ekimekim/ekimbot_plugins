@@ -16,6 +16,7 @@ class WhoIsLive(ClientPlugin):
 
 	defaults = {
 		'target': None, # None makes us use client.nick
+		'limit': 5,
 	}
 
 	@property
@@ -28,23 +29,23 @@ class WhoIsLive(ClientPlugin):
 	@CommandHandler("live", 0)
 	def whoislive(self, msg):
 		"""List all currently live streamers from follow list"""
-		found = False
+		found = []
 		errors = False
 		try:
 			for name, channel in gtools.gmap_unordered(self.get_channel_if_live, self.following()):
 				if not channel:
 					continue
-				found = True
-				try:
+				found.append(name)
+				if len(found) < self.config.limit:
 					self.reply(msg, "{name} is playing {game}: {status}".format(**channel))
-				except (ValueError, TypeError):
-					self.logger.exception("twitch returned unexpected value for {!r}: {!r}".format(name, channel))
-					errors = True
 		except Exception:
 			self.logger.exception("Error while checking who is live")
 			errors = True
 		if errors:
 			self.reply(msg, "I had some issues talking to twitch, maybe try again later?")
+		elif len(found) >= self.config.limit:
+			found = found[self.config.limit - 1:]
+			self.reply(msg, "And also {}".format(', '.join(found)))
 		elif not found:
 			self.reply(msg, "No-one is live right now, sorry!")
 
