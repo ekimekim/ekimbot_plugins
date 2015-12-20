@@ -56,6 +56,8 @@ def rate_limited(fn):
 		return fn(self, msg, *args)
 	return wrapper
 
+# TODO change rate limits to simple cooldown - 1 min cooldown for each command individually
+# TODO on death "!death" to target channel
 
 class PipBoy(ClientPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
@@ -69,7 +71,7 @@ class PipBoy(ClientPlugin):
 	def init(self):
 		self.pippy = gpippy.Client(self.config.host, self.config.port)
 		self.ready = gevent.event.Event()
-		self.rate_limit = BlockingDecayRateLimit(10, 5)
+		self.rate_limit = BlockingDecayRateLimit(3, 10)
 
 	def cleanup(self):
 		super(PipBoy, self).cleanup()
@@ -100,7 +102,7 @@ class PipBoy(ClientPlugin):
 		self.reply(msg,
 			(
 				"{player.name} L{level} ({level_percent}% to next), "
-				"{player.hp}/{player.maxhp}hp ({hp_percent}%), {limbs}"
+				"{player.hp:.0f}/{player.maxhp:.0f}hp ({hp_percent}%), {limbs}"
 			).format(
 				player = player,
 				level = int(player.level),
@@ -110,40 +112,58 @@ class PipBoy(ClientPlugin):
 			)
 		)
 
-	@CommandHandler('stats', 0)
+	@CommandHandler('weight', 0)
 	@rate_limited
 	@needs_data
-	def stats(self, msg):
+	def weight(self, msg):
 		player = self.player
 
 		self.reply(msg,
 			(
-				"{player.name} in {player.location} at {time}, {special}, "
-				"carrying {player.weight:.0f}/{player.maxweight:.0f}lb, {radio}"
+				"{player.name} carrying {player.weight:.0f}/{player.maxweight:.0f}lb "
+				"in {player.location} at {time}"
 			).format(
 				player = player,
-				time = time.strftime("%H:%M %F", time.gmtime(player.time)),
-				special = ' '.join('{}{}'.format(letter, value)
-				                   for letter, value in zip('SPECIAL', player.special)),
-				radio = "listening to {}".format(player.radio) if player.radio else "radio off",
+				time = time.strftime("%H:%M", time.gmtime(player.time)),
+				special = ', '.join('{}: {}'.format(letter, value)
+				                    for letter, value in zip('SPECIAL', player.special)),
 			)
 		)
+
+	@CommandHandler('special', 0)
+	@rate_limited
+	@needs_data
+	def special(self, msg):
+		player = self.player
+		names = "STR", "PER", "END", "CHA", "INT", "AGL", "LCK"
+		display = []
+		for name, value, base in zip(names, player.special, player.base_special):
+			diff = value - base
+			suffix = '({:+d})'.format(diff) if diff else ''
+			display.append("{} {}{}".format(name, value, suffix))
+		self.reply(msg, "{}: {}".format(
+			player.name,
+			", ".join(display),
+		))
 
 	@CommandHandler('weapons', 0)
 	@rate_limited
 	@needs_data
 	def list_weapons(self, msg):
+		# TODO remap to pc controls for fav slots (1-9, 0, -, =)
 		favorites = [item for item in self.inventory.items if item.favorite]
 		favorites.sort(key=lambda item: item.favorite_slot)
 		self.reply(msg, "Favorited items:")
 		for item in favorites:
 			self.rate_limit.run(block=True)
-			self.reply(msg, "{item.favorite_slot} - {item.name}".format())
+			self.reply(msg, "{item.favorite_slot} - {item.name}".format(item=item))
 
 	@CommandHandler('equip', 1)
-	@op_only
+#	@op_only TODO fix op detection
 	@needs_data
 	def equip(self, msg, index):
+		# TODO remap to pc controls for fav slots (1-9, 0, -, =)
+		# TODO refuse to unequip already-equipped guns
 		inventory = self.inventory
 		try:
 			index = int(index)
