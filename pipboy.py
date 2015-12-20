@@ -7,8 +7,8 @@ import gevent.event
 from mrpippy.connection import MessageType
 from mrpippy.data import Player, Inventory
 
-from ekimbot.botplugin import ClientPlugin
-from ekimbot.commands import CommandHandler
+from ekimbot.botplugin import ChannelPlugin
+from ekimbot.commands import ChannelCommandHandler
 
 
 class BlockingDecayRateLimit(DecayRateLimit, BlockingRateLimit):
@@ -57,7 +57,7 @@ def with_cooldown(interval):
 
 # TODO on death "!death" to target channel
 
-class PipBoy(ClientPlugin):
+class PipBoy(ChannelPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
 	name = 'pipboy'
 
@@ -66,10 +66,12 @@ class PipBoy(ClientPlugin):
 		'port': 27000,
 	}
 
+	was_dead = False
+
 	FAVORITE_NAMES = "1234567890-="
 
 	def init(self):
-		self.pippy = gpippy.Client(self.config.host, self.config.port)
+		self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update)
 		self.ready = gevent.event.Event()
 		self.cooldowns = {}
 
@@ -86,6 +88,18 @@ class PipBoy(ClientPlugin):
 		self.cooldowns[name] = now
 		return True
 
+	def on_update(self, update):
+		player = self.player
+		if not player:
+			return
+		is_dead = player.value['Status']['IsPlayerDead']
+		if is_dead and not self.was_dead:
+			self.was_dead = True
+			if self.check_cooldown('death', 10):
+				self.channel.msg("!death")
+		elif self.was_dead and not is_dead:
+			self.was_dead = False
+
 	@property
 	def player(self):
 		if self.pippy.pipdata.root is None:
@@ -98,7 +112,7 @@ class PipBoy(ClientPlugin):
 			return
 		return Inventory(self.pippy.pipdata)
 
-	@CommandHandler('health', 0)
+	@ChannelCommandHandler('health', 0)
 	@with_cooldown(60)
 	@needs_data
 	def health(self, msg):
@@ -121,7 +135,7 @@ class PipBoy(ClientPlugin):
 			)
 		)
 
-	@CommandHandler('weight', 0)
+	@ChannelCommandHandler('weight', 0)
 	@with_cooldown(60)
 	@needs_data
 	def weight(self, msg):
@@ -139,7 +153,7 @@ class PipBoy(ClientPlugin):
 			)
 		)
 
-	@CommandHandler('special', 0)
+	@ChannelCommandHandler('special', 0)
 	@with_cooldown(60)
 	@needs_data
 	def special(self, msg):
@@ -155,7 +169,7 @@ class PipBoy(ClientPlugin):
 			", ".join(display),
 		))
 
-	@CommandHandler('weapons', 0)
+	@ChannelCommandHandler('weapons', 0)
 	@with_cooldown(60)
 	@needs_data
 	def list_weapons(self, msg):
@@ -166,7 +180,7 @@ class PipBoy(ClientPlugin):
 			slot_name = self.FAVORITE_NAMES[item.favorite_slot]
 			self.reply(msg, "{} - {}".format(slot_name, item.name))
 
-	@CommandHandler('equip', 1)
+	@ChannelCommandHandler('equip', 1)
 #	@op_only TODO fix op detection
 	@needs_data
 	def equip(self, msg, index):
