@@ -6,7 +6,6 @@ import gpippy
 import gevent.event
 from mrpippy.connection import MessageType
 from mrpippy.data import Player, Inventory
-from ratelimit import BlockingRateLimit, DecayRateLimit, RateLimited
 
 from ekimbot.botplugin import ClientPlugin
 from ekimbot.commands import CommandHandler
@@ -37,7 +36,6 @@ def op_only(fn):
 			self.reply(msg, "This command can only be used from channels I have joined")
 		if msg.sender not in channel.users.ops:
 			try:
-				self.rate_limit.run(block=False)
 				self.reply(msg, "Some of my commands are mod-only, sorry.")
 			except RateLimited:
 				pass
@@ -46,17 +44,17 @@ def op_only(fn):
 	return wrapper
 
 
-def rate_limited(fn):
-	@functools.wraps(fn)
-	def wrapper(self, msg, *args):
-		try:
-			self.rate_limit.run(block=False)
-		except RateLimited:
-			return
-		return fn(self, msg, *args)
-	return wrapper
+def with_cooldown(interval):
+	"""Only run the wrapped function if it hasn't run in the last interval seconds"""
+	def _with_cooldown(fn):
+		@functools.wraps(fn)
+		def wrapper(self, msg, *args):
+			if self.check_cooldown(fn.__name__, interval):
+				return fn(self, msg, *args)
+		return wrapper
+	return _with_cooldown
 
-# TODO change rate limits to simple cooldown - 1 min cooldown for each command individually
+
 # TODO on death "!death" to target channel
 
 class PipBoy(ClientPlugin):
@@ -68,14 +66,25 @@ class PipBoy(ClientPlugin):
 		'port': 27000,
 	}
 
+	FAVORITE_NAMES = "1234567890-="
+
 	def init(self):
 		self.pippy = gpippy.Client(self.config.host, self.config.port)
 		self.ready = gevent.event.Event()
-		self.rate_limit = BlockingDecayRateLimit(3, 10)
+		self.cooldowns = {}
 
 	def cleanup(self):
 		super(PipBoy, self).cleanup()
 		self.pippy.close()
+
+	def check_cooldown(self, name, interval):
+		"""If named cooldown has not been used in the last interval seconds,
+		return True and use the cooldown. Else return False."""
+		now = time.time()
+		if name in self.cooldowns and now - self.cooldowns[name] < interval:
+			return False
+		self.cooldowns[name] = now
+		return True
 
 	@property
 	def player(self):
@@ -90,7 +99,7 @@ class PipBoy(ClientPlugin):
 		return Inventory(self.pippy.pipdata)
 
 	@CommandHandler('health', 0)
-	@rate_limited
+	@with_cooldown(60)
 	@needs_data
 	def health(self, msg):
 		player = self.player
@@ -113,7 +122,7 @@ class PipBoy(ClientPlugin):
 		)
 
 	@CommandHandler('weight', 0)
-	@rate_limited
+	@with_cooldown(60)
 	@needs_data
 	def weight(self, msg):
 		player = self.player
@@ -131,7 +140,7 @@ class PipBoy(ClientPlugin):
 		)
 
 	@CommandHandler('special', 0)
-	@rate_limited
+	@with_cooldown(60)
 	@needs_data
 	def special(self, msg):
 		player = self.player
@@ -147,26 +156,23 @@ class PipBoy(ClientPlugin):
 		))
 
 	@CommandHandler('weapons', 0)
-	@rate_limited
+	@with_cooldown(60)
 	@needs_data
 	def list_weapons(self, msg):
-		# TODO remap to pc controls for fav slots (1-9, 0, -, =)
 		favorites = [item for item in self.inventory.items if item.favorite]
 		favorites.sort(key=lambda item: item.favorite_slot)
 		self.reply(msg, "Favorited items:")
 		for item in favorites:
-			self.rate_limit.run(block=True)
-			self.reply(msg, "{item.favorite_slot} - {item.name}".format(item=item))
+			slot_name = self.FAVORITE_NAMES[item.favorite_slot]
+			self.reply(msg, "{} - {}".format(slot_name, item.name))
 
 	@CommandHandler('equip', 1)
 #	@op_only TODO fix op detection
 	@needs_data
 	def equip(self, msg, index):
-		# TODO remap to pc controls for fav slots (1-9, 0, -, =)
-		# TODO refuse to unequip already-equipped guns
 		inventory = self.inventory
 		try:
-			index = int(index)
+			index = int(index) - 1 # user interface is 1-indexed
 		except ValueError:
 			self.reply(msg, "Favorite slot must be a number, not {!r}".format(index))
 			return
@@ -178,6 +184,8 @@ class PipBoy(ClientPlugin):
 			self.reply(msg, "More than one item attached to that favorite slot somehow?")
 			return
 		item, = items
+		if item.equipped:
+			self.reply(msg, "Sorry, you can't equip something that's already equipped")
+			return
 		# todo replace with more general code
-		request = self.pippy.rpc.use_item(lambda resp: None, item.handle_id, inventory.version)
-		self.pippy.send(MessageType.COMMAND, request)
+		self.pippy.use_item(item.handle_id, inventory.version)
