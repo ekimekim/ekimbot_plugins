@@ -4,15 +4,10 @@ import time
 
 import gpippy
 import gevent.event
-from mrpippy.connection import MessageType
 from mrpippy.data import Player, Inventory
 
 from ekimbot.botplugin import ChannelPlugin
 from ekimbot.commands import ChannelCommandHandler
-
-
-class BlockingDecayRateLimit(DecayRateLimit, BlockingRateLimit):
-	pass
 
 
 def needs_data(fn):
@@ -32,13 +27,9 @@ def op_only(fn):
 			self.reply(msg, "This command is not allowed in PM")
 			return
 		channel = self.client.channel(msg.target)
-		if not channel.joined:
-			self.reply(msg, "This command can only be used from channels I have joined")
 		if msg.sender not in channel.users.ops:
-			try:
-				self.reply(msg, "Some of my commands are mod-only, sorry.")
-			except RateLimited:
-				pass
+			if self.check_cooldown('mod-only', 30):
+				self.reply(msg, "This command is mod-only.")
 			return
 		return fn(self, msg, *args)
 	return wrapper
@@ -54,8 +45,6 @@ def with_cooldown(interval):
 		return wrapper
 	return _with_cooldown
 
-
-# TODO on death "!death" to target channel
 
 class PipBoy(ChannelPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
@@ -181,7 +170,7 @@ class PipBoy(ChannelPlugin):
 			self.reply(msg, "{} - {}".format(slot_name, item.name))
 
 	@ChannelCommandHandler('equip', 1)
-#	@op_only TODO fix op detection
+	@op_only
 	@needs_data
 	def equip(self, msg, index):
 		inventory = self.inventory
@@ -201,5 +190,4 @@ class PipBoy(ChannelPlugin):
 		if item.equipped:
 			self.reply(msg, "Sorry, you can't equip something that's already equipped")
 			return
-		# todo replace with more general code
 		self.pippy.use_item(item.handle_id, inventory.version)
