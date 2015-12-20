@@ -57,8 +57,6 @@ class PipBoy(ChannelPlugin):
 
 	was_dead = False
 
-	FAVORITE_NAMES = "1234567890-="
-
 	def init(self):
 		self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update)
 		self.ready = gevent.event.Event()
@@ -162,12 +160,28 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def list_weapons(self, msg):
-		favorites = [item for item in self.inventory.items if item.favorite]
+		favorites = [item for item in self.inventory.weapons if item.favorite]
 		favorites.sort(key=lambda item: item.favorite_slot)
 		self.reply(msg, "Favorited items:")
 		for item in favorites:
-			slot_name = self.FAVORITE_NAMES[item.favorite_slot]
+			slot_name = item.favorite_slot + 1
 			self.reply(msg, "{} - {}".format(slot_name, item.name))
+
+	@ChannelCommandHandler('chems', 0)
+	@with_cooldown(60)
+	@needs_data
+	def list_chems(self, msg):
+		favorites = [item for item in self.inventory.aid if item.favorite]
+		favorites.sort(key=lambda item: item.favorite_slot)
+		self.reply(msg, "Favorited chems:")
+		for item in favorites:
+			slot_name = item.favorite_slot + 1
+			description = ', '.join(item.effects_text)
+			self.reply(msg, "{slot} - {item.count}x {item.name} ({description})".format(
+				slot=slot_name,
+				item=item,
+				description=description,
+			))
 
 	@ChannelCommandHandler('equip', 1)
 	@op_only
