@@ -122,10 +122,10 @@ class PipBoy(ChannelPlugin):
 			)
 		)
 
-	@ChannelCommandHandler('weight', 0)
+	@ChannelCommandHandler('info', 0)
 	@with_cooldown(60)
 	@needs_data
-	def weight(self, msg):
+	def info(self, msg):
 		player = self.player
 
 		self.reply(msg,
