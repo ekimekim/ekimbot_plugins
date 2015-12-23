@@ -29,9 +29,7 @@ def op_only(fn):
 		if not msg.target.startswith('#'):
 			self.reply(msg, "This command is not allowed in PM")
 			return
-		channel = self.client.channel(msg.target)
-		# on twitch, there's weirdness with 'is an op' so we hard-code that the channel owner is op
-		if msg.sender not in channel.users.ops and msg.sender != channel.name.lstrip('#'):
+		if not self.is_op(msg):
 			if self.check_cooldown('mod-only', 30):
 				self.reply(msg, "This command is mod-only.")
 			return
@@ -40,11 +38,13 @@ def op_only(fn):
 
 
 def with_cooldown(interval):
-	"""Only run the wrapped function if it hasn't run in the last interval seconds"""
+	"""Only run the wrapped handler if it hasn't run in the last interval seconds,
+	or if the caller is an op.
+	"""
 	def _with_cooldown(fn):
 		@functools.wraps(fn)
 		def wrapper(self, msg, *args):
-			if self.check_cooldown(fn.__name__, interval):
+			if self.check_cooldown(fn.__name__, interval, is_op(msg)):
 				return fn(self, msg, *args)
 		return wrapper
 	return _with_cooldown
@@ -71,12 +71,18 @@ class PipBoy(ChannelPlugin):
 			self.pippy.close()
 		super(PipBoy, self).cleanup()
 
-	def check_cooldown(self, name, interval):
+	def is_op(self, msg):
+		"""Returns if msg was sent by an op"""
+		# on twitch, there's weirdness with 'is an op' so we hard-code that the channel owner is op
+		return msg.sender in self.channel.users.ops or msg.sender == self.channel.name.lstrip('#')
+
+	def check_cooldown(self, name, interval, bypass=False):
 		"""If named cooldown has not been used in the last interval seconds,
-		return True and use the cooldown. Else return False."""
+		or if bypass is True, return True and use the cooldown. Else return False.
+		"""
 		now = time.time()
-		self.logger.debug("checking cooldown for {!r}".format(name))
-		if name in self.cooldowns and now - self.cooldowns[name] < interval:
+		self.logger.debug("checking cooldown for {!r} with bypass {}".format(name, bypass))
+		if bypass or name in self.cooldowns and now - self.cooldowns[name] < interval:
 			self.logger.debug("rejecting cooldown check: last used {}s ago, needed {}s".format(
 				now - self.cooldowns[name],
 				interval))
