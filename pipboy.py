@@ -30,7 +30,8 @@ def op_only(fn):
 			self.reply(msg, "This command is not allowed in PM")
 			return
 		channel = self.client.channel(msg.target)
-		if msg.sender not in channel.users.ops:
+		# on twitch, there's weirdness with 'is an op' so we hard-code that the channel owner is op
+		if msg.sender not in channel.users.ops and msg.sender != channel.name.lstrip('#'):
 			if self.check_cooldown('mod-only', 30):
 				self.reply(msg, "This command is mod-only.")
 			return
