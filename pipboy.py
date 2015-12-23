@@ -164,13 +164,17 @@ class PipBoy(ChannelPlugin):
 	def info(self, msg):
 		player = self.player
 
+		weight = int(player.weight)
+		maxweight = int(player.maxweight)
 		self.reply(msg,
 			(
-				"{player.name} carrying {player.weight:.0f}/{player.maxweight:.0f}lb "
+				"{player.name} carrying {weight}/{maxweight}lb "
 				"in {player.location} at {time}"
 			).format(
 				player = player,
 				time = time.strftime("%H:%M", time.gmtime(player.time)),
+				weight = weight,
+				maxweight = maxweight,
 				special = ', '.join('{}: {}'.format(letter, value)
 				                    for letter, value in zip('SPECIAL', player.special)),
 			)
