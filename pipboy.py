@@ -13,6 +13,9 @@ from ekimbot.commands import ChannelCommandHandler
 def needs_data(fn):
 	@functools.wraps(fn)
 	def wrapper(self, msg, *args):
+		if not self.pippy:
+			self.reply(msg, "Not connected.")
+			return
 		if self.player is None:
 			self.reply(msg, "Not ready yet, please wait.")
 			return
@@ -55,16 +58,17 @@ class PipBoy(ChannelPlugin):
 		'port': 27000,
 	}
 
-	was_dead = False
+	pippy = None
+	was_dead = None # True or False, None means unknown
 
 	def init(self):
-		self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update)
 		self.ready = gevent.event.Event()
 		self.cooldowns = {}
 
 	def cleanup(self):
+		if self.pippy:
+			self.pippy.close()
 		super(PipBoy, self).cleanup()
-		self.pippy.close()
 
 	def check_cooldown(self, name, interval):
 		"""If named cooldown has not been used in the last interval seconds,
@@ -75,27 +79,53 @@ class PipBoy(ChannelPlugin):
 		self.cooldowns[name] = now
 		return True
 
+	@ChannelCommandHandler('connect', 0)
+	@op_only
+	def connect(self, msg):
+		if self.pippy:
+			self.disconnect(msg)
+		try:
+			self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update, on_close=self.on_close)
+		except Exception:
+			self.reply(msg, "Failed to connect")
+			return
+		self.reply(msg, "Connected to game")
+
+	@ChannelCommandHandler('disconnect', 0)
+	@op_only
+	def disconnect(self, msg):
+		if not self.pippy:
+			return
+		self.pippy.close()
+		assert self.pippy is None, "Failed to clear self.pippy after close returned"
+
 	def on_update(self, update):
 		player = self.player
 		if not player:
 			return
 		is_dead = player.value['Status']['IsPlayerDead']
-		if is_dead and not self.was_dead:
-			self.was_dead = True
-			if self.check_cooldown('death', 10):
-				self.channel.msg("!death")
-		elif self.was_dead and not is_dead:
-			self.was_dead = False
+		if all([self.was_dead is not None, # was_dead isn't unknown
+		        is_dead, not self.was_dead, # value has gone from false to true
+		        self.check_cooldown('death', 10), # we didn't say it recently
+		       ]):
+			self.channel.msg("!death")
+		self.was_dead = is_dead
+
+	def on_close(self, ex):
+		self.pippy = None
+		self.ready.clear()
+		self.was_dead = None
+		self.channel.msg("Connection lost")
 
 	@property
 	def player(self):
-		if self.pippy.pipdata.root is None:
+		if not self.pippy or self.pippy.pipdata.root is None:
 			return
 		return Player(self.pippy.pipdata)
 
 	@property
 	def inventory(self):
-		if self.pippy.pipdata.root is None:
+		if not self.pippy or self.pippy.pipdata.root is None:
 			return
 		return Inventory(self.pippy.pipdata)
 
