@@ -75,7 +75,11 @@ class PipBoy(ChannelPlugin):
 		"""If named cooldown has not been used in the last interval seconds,
 		return True and use the cooldown. Else return False."""
 		now = time.time()
+		self.logger.debug("checking cooldown for {!r}".format(name))
 		if name in self.cooldowns and now - self.cooldowns[name] < interval:
+			self.logger.debug("rejecting cooldown check: last used {}s ago, needed {}s".format(
+				now - self.cooldowns[name],
+				interval))
 			return False
 		self.cooldowns[name] = now
 		return True
@@ -88,6 +92,7 @@ class PipBoy(ChannelPlugin):
 		try:
 			self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update, on_close=self.on_close)
 		except Exception:
+			self.logger.warning("Failed to connect to {config.host}:{config.port}".format(config=self.config), exc_info=True)
 			self.reply(msg, "Failed to connect")
 			return
 		self.reply(msg, "Connected to game")
