@@ -195,7 +195,17 @@ class PipBoy(ChannelPlugin):
 		self.reply(msg, "Favorited items:")
 		for item in favorites:
 			slot_name = item.favorite_slot + 1
-			self.reply(msg, "{} - {}".format(slot_name, item.name))
+			ammo = item.ammo
+			if ammo is item:
+				# grenades, etc
+				ammo_str = " ({}x)".format(item.count)
+			elif ammo:
+				# firearms
+				ammo_str = " ({ammo.count}x {ammo.name})".format(ammo=ammo)
+			else:
+				# no ammo: melee, etc
+				ammo_str = ""
+			self.reply(msg, "{} - {}{}".format(slot_name, item.name, ammo_str))
 
 	@ChannelCommandHandler('chems', 0)
 	@with_cooldown(60)
