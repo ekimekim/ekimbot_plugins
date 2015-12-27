@@ -45,7 +45,7 @@ class UpdatePlugin(ClientPlugin):
 		if target_cmd:
 			target_cmd = [arg.replace('{}', target_dir) for arg in target_cmd]
 
-		logger.info("Updating {} with ref {}".format(target))
+		self.logger.info("Updating {} with ref {}".format(target, ref))
 		try:
 			if ref:
 				self.git(target_dir, 'checkout', ref, '--')
