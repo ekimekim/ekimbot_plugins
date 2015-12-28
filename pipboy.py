@@ -83,7 +83,7 @@ class PipBoy(ChannelPlugin):
 		"""
 		now = time.time()
 		self.logger.debug("checking cooldown for {!r} with bypass {}".format(name, bypass))
-		if bypass or name in self.cooldowns and now - self.cooldowns[name] < interval:
+		if not bypass and name in self.cooldowns and now - self.cooldowns[name] < interval:
 			self.logger.debug("rejecting cooldown check: last used {}s ago, needed {}s".format(
 				now - self.cooldowns[name],
 				interval))
