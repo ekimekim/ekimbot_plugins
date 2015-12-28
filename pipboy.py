@@ -44,7 +44,7 @@ def with_cooldown(interval):
 	def _with_cooldown(fn):
 		@functools.wraps(fn)
 		def wrapper(self, msg, *args):
-			if self.check_cooldown(fn.__name__, interval, is_op(msg)):
+			if self.check_cooldown(fn.__name__, interval, self.is_op(msg)):
 				return fn(self, msg, *args)
 		return wrapper
 	return _with_cooldown
