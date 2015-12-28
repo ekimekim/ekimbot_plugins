@@ -57,6 +57,7 @@ class PipBoy(ChannelPlugin):
 	defaults = {
 		'host': 'localhost',
 		'port': 27000,
+		'force_ops': [],
 	}
 
 	pippy = None
@@ -74,7 +75,7 @@ class PipBoy(ChannelPlugin):
 	def is_op(self, msg):
 		"""Returns if msg was sent by an op"""
 		# on twitch, there's weirdness with 'is an op' so we hard-code that the channel owner is op
-		return msg.sender in self.channel.users.ops or msg.sender == self.channel.name.lstrip('#')
+		return msg.sender in self.channel.users.ops or msg.sender == self.channel.name.lstrip('#') or msg.sender in self.config.force_ops
 
 	def check_cooldown(self, name, interval, bypass=False):
 		"""If named cooldown has not been used in the last interval seconds,
