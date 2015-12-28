@@ -239,7 +239,7 @@ class PipBoy(ChannelPlugin):
 				description=description,
 			))
 
-	@ChannelCommandHandler('equip', 1)
+	@ChannelCommandHandler('use', 1)
 	@op_only
 	@needs_data
 	def equip(self, msg, index):
