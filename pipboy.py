@@ -1,13 +1,19 @@
 
 import functools
+import random
+import re
 import time
 
 import gpippy
 import gevent.event
+from girc import Handler
 from mrpippy.data import Player, Inventory
 
 from ekimbot.botplugin import ChannelPlugin
 from ekimbot.commands import ChannelCommandHandler
+
+
+POLL_RESPONSE = re.compile(r'^Poll for .* has been closed. Winning option was Slot (\d+)$')
 
 
 def needs_data(fn):
@@ -48,6 +54,16 @@ def with_cooldown(interval):
 				return fn(self, msg, *args)
 		return wrapper
 	return _with_cooldown
+
+
+def drop_client_arg(fn):
+	"""Decorator designed to adapt the call signature of a Handler to that of a
+	CommandHandler, ie. it drops the redundant client arg. This is useful to allow usage of
+	CommandHandler-specific decorators."""
+	@functools.wraps(fn)
+	def wrapper(self, client, msg, *args):
+		return fn(self, msg, *args)
+	return wrapper
 
 
 class PipBoy(ChannelPlugin):
@@ -91,6 +107,22 @@ class PipBoy(ChannelPlugin):
 		self.cooldowns[name] = now
 		return True
 
+	@ChannelCommandHandler('help', 0)
+	@with_cooldown(60)
+	def help(self, msg):
+		# XXX a ton of hard-coded shit here
+		REPLY = [
+			"&health - See player's current health and other vital stats",
+			"&info - See player's weight, location and other info",
+			"&special - See player's S.P.E.C.I.A.L. and current bonuses",
+			"&weapons - List all favorited weapon slots",
+			"&chems - See all favorited chems slots",
+			"!booze - (50 catnip) Use a random booze item",
+			"!use SLOT - (100 catnip) Equip/Use item in given favorite slot (1 to 12)",
+		]
+		for line in REPLY:
+			self.reply(msg, line)
+
 	@ChannelCommandHandler('connect', 0)
 	@op_only
 	def connect(self, msg):
@@ -117,10 +149,9 @@ class PipBoy(ChannelPlugin):
 		if not player:
 			return
 		is_dead = player.value['Status']['IsPlayerDead']
-		if all([self.was_dead is not None, # was_dead isn't unknown
-		        is_dead, not self.was_dead, # value has gone from false to true
-		        self.check_cooldown('death', 10), # we didn't say it recently
-		       ]):
+		if (self.was_dead is not None and # was_dead isn't unknown
+		    is_dead and not self.was_dead and # value has gone from false to true
+		    self.check_cooldown('death', 10)): # we didn't say it recently
 			self.channel.msg("!death")
 		self.was_dead = is_dead
 
@@ -141,6 +172,23 @@ class PipBoy(ChannelPlugin):
 		if not self.pippy or self.pippy.pipdata.root is None:
 			return
 		return Inventory(self.pippy.pipdata)
+
+	def use_item(self, msg, item):
+		player = self.player
+		if player.locked:
+			busy_type = 'busy'
+			status = player.value['Status']
+			if status['IsPlayerDead']:
+				busy_type = 'dead'
+			elif status['IsLoading']:
+				busy_type = 'loading'
+			elif status['IsMenuOpen']:
+				busy_type = 'in menu'
+			elif status['IsInVats'] or status['IsInVatsPlayback']:
+				busy_type = 'in vats'
+			self.reply(msg, "Can't use {}: Player is {}".format(item.name, busy_type))
+			return
+		self.pippy.use_item(item.handle_id, self.inventory.version)
 
 	@ChannelCommandHandler('health', 0)
 	@with_cooldown(60)
@@ -208,6 +256,7 @@ class PipBoy(ChannelPlugin):
 	@needs_data
 	def list_weapons(self, msg):
 		favorites = [item for item in self.inventory.weapons if item.favorite]
+		favorites = {item.name: item for item in favorites}.values()
 		favorites.sort(key=lambda item: item.favorite_slot)
 		self.reply(msg, "Favorited items:")
 		for item in favorites:
@@ -240,10 +289,22 @@ class PipBoy(ChannelPlugin):
 				description=description,
 			))
 
+	@ChannelCommandHandler('booze', 0)
+	@op_only
+	@needs_data
+	def booze(self, msg):
+		inventory = self.inventory
+		booze = [item for item in inventory.aid if item.name.lower() in item.ALCOHOL_NAMES]
+		if not booze:
+			self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)")
+			return
+		item = random.choice(booze)
+		self.use_item(msg, item)
+
 	@ChannelCommandHandler('use', 1)
 	@op_only
 	@needs_data
-	def equip(self, msg, index):
+	def use(self, msg, index):
 		inventory = self.inventory
 		try:
 			index = int(index) - 1 # user interface is 1-indexed
@@ -255,10 +316,24 @@ class PipBoy(ChannelPlugin):
 			self.reply(msg, "No item attached to that favorite slot")
 			return
 		if len(items) > 1:
-			self.reply(msg, "More than one item attached to that favorite slot somehow?")
-			return
+			first_item = items[0]
+			# special case: sometimes we get duplicates with the same name? they're the same item.
+			if not all(item.name == first_item.name for item in items[1:]):
+				self.reply(msg, "More than one item attached to that favorite slot somehow?")
+				return
+			items = [first_item]
 		item, = items
 		if item.equipped:
 			self.reply(msg, "Sorry, you can't equip something that's already equipped")
 			return
-		self.pippy.use_item(item.handle_id, inventory.version)
+		self.use_item(msg, item)
+
+	@Handler(command='PRIVMSG', payload=POLL_RESPONSE)
+	@drop_client_arg
+	@op_only
+	def respond_to_poll(self, msg, *args):
+		match = POLL_RESPONSE.match(msg.payload)
+		assert match, "handler responded for non-matching message: {!r}".format(msg.payload)
+		slot, = match.groups()
+		slot = int(slot)
+		self.use(msg, slot)
