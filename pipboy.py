@@ -296,7 +296,7 @@ class PipBoy(ChannelPlugin):
 		inventory = self.inventory
 		booze = [item for item in inventory.aid if item.name.lower() in item.ALCOHOL_NAMES]
 		if not booze:
-			self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)")
+			self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)".format(self.player.name))
 			return
 		item = random.choice(booze)
 		self.use_item(msg, item)
