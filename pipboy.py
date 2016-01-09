@@ -117,8 +117,8 @@ class PipBoy(ChannelPlugin):
 			"&special - See player's S.P.E.C.I.A.L. and current bonuses",
 			"&weapons - List all favorited weapon slots",
 			"&chems - See all favorited chems slots",
-			"!booze - (50 catnip) Use a random booze item",
-			"!use SLOT - (100 catnip) Equip/Use item in given favorite slot (1 to 12)",
+			"(50 catnip) !booze - Use a random booze item",
+			"(100 catnip) !use SLOT - Equip/Use item in given favorite slot (1 to 12)",
 		]
 		for line in REPLY:
 			self.reply(msg, line)
