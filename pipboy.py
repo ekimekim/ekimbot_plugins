@@ -256,7 +256,7 @@ class PipBoy(ChannelPlugin):
 			if not found_items:
 				self.channel.msg("Failed to use {}: item no longer exists".format(item.name))
 				return
-			self.pippy.use_item(item.handle_id, version)
+			self.pippy.use_item(item.handle_id, version, block=False)
 			self.channel.msg("Used {}".format(item.name))
 
 	@ChannelCommandHandler('health', 0)
