@@ -112,7 +112,27 @@ class PipBoy(ChannelPlugin):
 	name = 'pipboy'
 
 	CHEMS = {
-		'jet', #TODO
+		'berry mentats',
+		'buffjet',
+		'buffout',
+		'bufftats',
+		'calmex',
+		'daddy-o',
+		'day tripper',
+		'fury',
+		'grape mentats',
+		'jet',
+		'jet fuel',
+		'med-x',
+		'mentats',
+		'orange mentats',
+		'overdrive',
+		'psycho',
+		'psycho jet',
+		'psychobuff',
+		'psychotats',
+		'ultra jet',
+		'x-cell',
 	}
 
 	defaults = {
