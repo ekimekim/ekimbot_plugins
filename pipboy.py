@@ -111,6 +111,10 @@ class PipBoy(ChannelPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
 	name = 'pipboy'
 
+	CHEMS = {
+		'jet', #TODO
+	}
+
 	defaults = {
 		'host': 'localhost',
 		'port': 27000,
@@ -158,9 +162,10 @@ class PipBoy(ChannelPlugin):
 			"&info - See player's weight, location and other info",
 			"&special - See player's S.P.E.C.I.A.L. and current bonuses",
 			"&weapons - List all favorited weapon slots",
-			"&chems - See all favorited chems slots",
-			"(50 catnip) !booze - Use a random booze item",
-			"(100 catnip) !use SLOT - Equip/Use item in given favorite slot (1 to 12)",
+			"&chems - See a selection of chems the player is carrying",
+			"(25 catnip) !booze - Use a random booze item",
+			"(50 catnip) !use SLOT - Equip/Use item in given favorite slot (1 to 12)",
+			"(50 catnip) !usechem NAME - Use the named chem (eg. !usechem Jet)",
 		]
 		for line in REPLY:
 			self.reply(msg, line)
@@ -321,14 +326,13 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def list_chems(self, msg):
-		favorites = [item for item in self.inventory.aid if item.favorite]
-		favorites.sort(key=lambda item: item.favorite_slot)
-		self.reply(msg, "Favorited chems:")
-		for item in favorites:
-			slot_name = item.favorite_slot + 1
+		LIMIT = 5
+		chems = [item for item in self.inventory.aid if item.name.lower() in self.CHEMS]
+		if len(chems) > LIMIT:
+			chems = random.sample(chems, LIMIT)
+		for item in sorted(chems, key=lambda item: item.name):
 			description = ', '.join(item.effects_text)
-			self.reply(msg, "{slot} - {item.count}x {item.name} ({description})".format(
-				slot=slot_name,
+			self.reply(msg, "{item.count}x {item.name} ({description})".format(
 				item=item,
 				description=description,
 			))
@@ -346,10 +350,30 @@ class PipBoy(ChannelPlugin):
 			item = random.choice(booze)
 			self.use_item(item)
 
+	@ChannelCommandHandler('usechem', 1)
+	@op_only
+	@needs_data
+	def use_chem(self, msg, *name):
+		"""Use a chem of given name"""
+		name = ' '.join(name)
+		if name.lower() not in self.CHEMS:
+			self.reply(msg, "{} is not a chem we can use".format(name))
+			return
+		with self.use_item_lock:
+			matching = [item for item in self.inventory.aid if item.name.lower() == name.lower()]
+			if not matching:
+				self.reply(msg, "{} is not carrying any {}".format(self.player.name, name))
+			if len(matching) > 1:
+				self.logger.warning("Carrying multiple copies of chem named {!r}: {}".format(name, matching))
+				matching = matching[0]
+			item, = matching
+			self.use_item(item)
+
 	@ChannelCommandHandler('use', 1)
 	@op_only
 	@needs_data
 	def use(self, msg, index):
+		"""Use an item from quickslot"""
 		try:
 			index = int(index) - 1 # user interface is 1-indexed
 		except ValueError:
