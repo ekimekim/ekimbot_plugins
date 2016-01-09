@@ -6,6 +6,7 @@ import time
 
 import gpippy
 import gevent.event
+import gevent.lock
 from girc import Handler
 from mrpippy.data import Player, Inventory
 
@@ -66,6 +67,46 @@ def drop_client_arg(fn):
 	return wrapper
 
 
+class UseItemReset(Exception):
+	pass
+
+
+class UseItemLock(gevent.lock.RLock):
+	"""RLock variant which blocks until we're in a state when we can use an item."""
+	_use_item_waiter = None
+	_last_use_version = None
+
+	def __init__(self, parent):
+		self.parent = parent
+		super(UseItemLock, self).__init__()
+
+	def acquire(self):
+		super(UseItemLock, self).acquire()
+		if self._count == 1:
+			# on first acquire, block until we can use item
+			self._use_item_waiter = gevent.event.AsyncResult()
+			self.check()
+			self._use_item_waiter.wait()
+			if not self._use_item_waiter.successful():
+				self.release()
+				self._use_item_waiter.get() # raise
+
+	def reset(self):
+		if self._use_item_waiter:
+			self._use_item_waiter.set_exception(UseItemReset())
+		self._last_use_version = None
+
+	def check(self):
+		if (self._use_item_waiter
+		    and not self._use_item_waiter.ready()
+		    and self.parent.inventory.version != self._last_use_version
+		    and not self.parent.player.locked):
+			self._use_item_waiter.set(None)
+
+	def set_last_use_version(self, version):
+		self._last_use_version = version
+
+
 class PipBoy(ChannelPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
 	name = 'pipboy'
@@ -81,6 +122,7 @@ class PipBoy(ChannelPlugin):
 
 	def init(self):
 		self.ready = gevent.event.Event()
+		self.use_item_lock = UseItemLock(self)
 		self.cooldowns = {}
 
 	def cleanup(self):
@@ -128,6 +170,7 @@ class PipBoy(ChannelPlugin):
 	def connect(self, msg):
 		if self.pippy:
 			self.disconnect(msg)
+		self.use_item_lock.reset()
 		try:
 			self.pippy = gpippy.Client(self.config.host, self.config.port, self.on_update, on_close=self.on_close)
 		except Exception:
@@ -148,12 +191,15 @@ class PipBoy(ChannelPlugin):
 		player = self.player
 		if not player:
 			return
+		# check for death
 		is_dead = player.value['Status']['IsPlayerDead']
 		if (self.was_dead is not None and # was_dead isn't unknown
 		    is_dead and not self.was_dead and # value has gone from false to true
 		    self.check_cooldown('death', 10)): # we didn't say it recently
 			self.channel.msg("!death")
 		self.was_dead = is_dead
+		# check for waiting use_item_lock
+		self.use_item_lock.check()
 
 	def on_close(self, ex):
 		self.pippy = None
@@ -173,22 +219,20 @@ class PipBoy(ChannelPlugin):
 			return
 		return Inventory(self.pippy.pipdata)
 
-	def use_item(self, msg, item):
-		player = self.player
-		if player.locked:
-			busy_type = 'busy'
-			status = player.value['Status']
-			if status['IsPlayerDead']:
-				busy_type = 'dead'
-			elif status['IsLoading']:
-				busy_type = 'loading'
-			elif status['IsMenuOpen']:
-				busy_type = 'in menu'
-			elif status['IsInVats'] or status['IsInVatsPlayback']:
-				busy_type = 'in vats'
-			self.reply(msg, "Can't use {}: Player is {}".format(item.name, busy_type))
-			return
-		self.pippy.use_item(item.handle_id, self.inventory.version)
+	def use_item(self, item):
+		with self.use_item_lock:
+			version = self.inventory.version
+			self.use_item_lock.set_last_use_version(version)
+			# confirm item is still present
+			found_items = [i for i in self.inventory.items if i.handle_id == item.handle_id]
+			if len(found_items) > 1:
+				self.logger.warning("Got duplicate handle id for multiple items: {}".format(found_items))
+				found_items = found_items[:1] # take first one
+			if not found_items:
+				self.channel.msg("Failed to use {}: item no longer exists".format(item.name))
+				return
+			self.pippy.use_item(item.handle_id, version)
+			self.channel.msg("Used {}".format(item.name))
 
 	@ChannelCommandHandler('health', 0)
 	@with_cooldown(60)
@@ -293,40 +337,42 @@ class PipBoy(ChannelPlugin):
 	@op_only
 	@needs_data
 	def booze(self, msg):
-		inventory = self.inventory
-		booze = [item for item in inventory.aid if item.name.lower() in item.ALCOHOL_NAMES]
-		if not booze:
-			self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)".format(self.player.name))
-			return
-		item = random.choice(booze)
-		self.use_item(msg, item)
+		with self.use_item_lock:
+			inventory = self.inventory
+			booze = [item for item in inventory.aid if item.name.lower() in item.ALCOHOL_NAMES]
+			if not booze:
+				self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)".format(self.player.name))
+				return
+			item = random.choice(booze)
+			self.use_item(item)
 
 	@ChannelCommandHandler('use', 1)
 	@op_only
 	@needs_data
 	def use(self, msg, index):
-		inventory = self.inventory
 		try:
 			index = int(index) - 1 # user interface is 1-indexed
 		except ValueError:
 			self.reply(msg, "Favorite slot must be a number, not {!r}".format(index))
 			return
-		items = [item for item in inventory.items if item.favorite_slot == index]
-		if not items:
-			self.reply(msg, "No item attached to that favorite slot")
-			return
-		if len(items) > 1:
-			first_item = items[0]
-			# special case: sometimes we get duplicates with the same name? they're the same item.
-			if not all(item.name == first_item.name for item in items[1:]):
-				self.reply(msg, "More than one item attached to that favorite slot somehow?")
+		with self.use_item_lock:
+			inventory = self.inventory
+			items = [item for item in inventory.items if item.favorite_slot == index]
+			if not items:
+				self.reply(msg, "No item attached to that favorite slot")
 				return
-			items = [first_item]
-		item, = items
-		if item.equipped:
-			self.reply(msg, "Sorry, you can't equip something that's already equipped")
-			return
-		self.use_item(msg, item)
+			if len(items) > 1:
+				first_item = items[0]
+				# special case: sometimes we get duplicates with the same name? they're the same item.
+				if not all(item.name == first_item.name for item in items[1:]):
+					self.reply(msg, "More than one item attached to that favorite slot somehow?")
+					return
+				items = [first_item]
+			item, = items
+			if item.equipped:
+				self.reply(msg, "Sorry, you can't equip something that's already equipped")
+				return
+			self.use_item(item)
 
 	@Handler(command='PRIVMSG', payload=POLL_RESPONSE)
 	@drop_client_arg
