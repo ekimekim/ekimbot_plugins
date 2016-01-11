@@ -67,6 +67,35 @@ def drop_client_arg(fn):
 	return wrapper
 
 
+def costs_points(points):
+	"""Only allows a function to execute if a user has the points to pay for it.
+	Once the function returns True, the points are deducted. The escrow system is used to avoid races.
+	If the function returns False or raises, points are refunded.
+	To allow calling wrapped functions without invoking a point cost, the optional kwarg free=True
+	can be given.
+	"""
+	def _costs_points(fn):
+		class WrappedFailed(Exception):
+			pass
+		@functools.wraps(fn)
+		def wrapper(self, msg, *args, **kwargs):
+			free = kwargs.pop('free', False)
+			if kwargs:
+				raise TypeError("Unexpected kwargs: {}".format(kwargs))
+			if free:
+				return fn(self, msg, *args)
+			try:
+				with self.deepclient.escrow(msg.sender, points):
+					if not fn(self, msg, *args):
+						raise WrappedFailed
+			except WrappedFailed:
+				pass
+			except (deepclient.UserNotFound, deepclient.NotEnoughPoints):
+				self.reply(msg, "{}: not enough points for that command (need {})".format(msg.sender, points))
+		return wrapper
+	return _costs_points
+
+
 class UseItemReset(Exception):
 	pass
 
@@ -135,9 +164,11 @@ class PipBoy(ChannelPlugin):
 		'x-cell',
 	}
 
+	# required: deep_secret - api secret for deepbot client
 	defaults = {
 		'host': 'localhost',
 		'port': 27000,
+		'deep_url': 'ws://localhost:3337',
 		'force_ops': [],
 	}
 
@@ -148,6 +179,7 @@ class PipBoy(ChannelPlugin):
 		self.ready = gevent.event.Event()
 		self.use_item_lock = UseItemLock(self)
 		self.cooldowns = {}
+		self._deepclient = gevent.spawn(deepclient.DeepClient, self.config.deep_url, self.config.deep_secret)
 
 	def cleanup(self):
 		if self.pippy:
@@ -243,6 +275,10 @@ class PipBoy(ChannelPlugin):
 		if not self.pippy or self.pippy.pipdata.root is None:
 			return
 		return Inventory(self.pippy.pipdata)
+
+	@property
+	def deepclient(self):
+		return self._deepclient.get()
 
 	def use_item(self, item):
 		with self.use_item_lock:
