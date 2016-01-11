@@ -41,6 +41,7 @@ def op_only(fn):
 				self.reply(msg, "This command is mod-only.")
 			return
 		return fn(self, msg, *args)
+	wrapper.op_only = True
 	return wrapper
 
 
@@ -92,6 +93,7 @@ def costs_points(points):
 				pass
 			except (deepclient.UserNotFound, deepclient.NotEnoughPoints):
 				self.reply(msg, "{}: not enough points for that command (need {})".format(msg.sender, points))
+		wrapper.point_cost = points
 		return wrapper
 	return _costs_points
 
@@ -139,6 +141,8 @@ class UseItemLock(gevent.lock.RLock):
 class PipBoy(ChannelPlugin):
 	"""Plugin for interacting with a running Fallout 4 game by means of the pip boy app protocol"""
 	name = 'pipboy'
+
+	CURRENCY_NAME = 'catnip'
 
 	CHEMS = {
 		'berry mentats',
@@ -208,7 +212,7 @@ class PipBoy(ChannelPlugin):
 	@ChannelCommandHandler('help', 0)
 	@with_cooldown(60)
 	def help(self, msg):
-		# XXX a ton of hard-coded shit here
+		# TODO move these descriptions to their docstrings / add costs to decorators
 		REPLY = [
 			"&health - See player's current health and other vital stats",
 			"&info - See player's weight, location and other info",
@@ -219,7 +223,26 @@ class PipBoy(ChannelPlugin):
 			"(50 catnip) !use SLOT - Equip/Use item in given favorite slot (1 to 12)",
 			"(50 catnip) !usechem NAME - Use the named chem (eg. !usechem Jet)",
 		]
-		for line in REPLY:
+		# find_handlers will return all attrs of self which are ChannelCommandHandlers
+		lines = []
+		for command in ChannelCommandHandler.find_handlers(self):
+			func = command.callback
+			if getattr(func, 'op_only', False):
+				continue # hide op only
+			points = getattr(func, 'point_cost', 0)
+			cost = '({} {}) '.format(points, self.CURRENCY_NAME) if points else ''
+			summary, description = command.help
+			if not summary:
+				summary = ''
+			line = '{prefix}{name} {cost}- {help}'.format(
+				prefix=self.client.config['command_prefix'],
+				name=' '.join(command.name),
+				cost=cost,
+				help=summary,
+			)
+			lines.append((points, line))
+		lines.sort() # sorts from free to most expensive, then alphabetically
+		for points, line in lines:
 			self.reply(msg, line)
 
 	@ChannelCommandHandler('connect', 0)
