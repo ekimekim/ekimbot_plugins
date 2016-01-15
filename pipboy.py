@@ -212,17 +212,6 @@ class PipBoy(ChannelPlugin):
 	@ChannelCommandHandler('help', 0)
 	@with_cooldown(60)
 	def help(self, msg):
-		# TODO move these descriptions to their docstrings / add costs to decorators
-		REPLY = [
-			"&health - See player's current health and other vital stats",
-			"&info - See player's weight, location and other info",
-			"&special - See player's S.P.E.C.I.A.L. and current bonuses",
-			"&weapons - List all favorited weapon slots",
-			"&chems - See a selection of chems the player is carrying",
-			"(25 catnip) !booze - Use a random booze item",
-			"(50 catnip) !use SLOT - Equip/Use item in given favorite slot (1 to 12)",
-			"(50 catnip) !usechem NAME - Use the named chem (eg. !usechem Jet)",
-		]
 		# find_handlers will return all attrs of self which are ChannelCommandHandlers
 		lines = []
 		for command in ChannelCommandHandler.find_handlers(self):
@@ -248,6 +237,7 @@ class PipBoy(ChannelPlugin):
 	@ChannelCommandHandler('connect', 0)
 	@op_only
 	def connect(self, msg):
+		"""Connect to the game"""
 		if self.pippy:
 			self.disconnect(msg)
 		self.use_item_lock.reset()
@@ -262,6 +252,7 @@ class PipBoy(ChannelPlugin):
 	@ChannelCommandHandler('disconnect', 0)
 	@op_only
 	def disconnect(self, msg):
+		"""If connected, close the connection"""
 		if not self.pippy:
 			return
 		self.pippy.close()
@@ -322,6 +313,7 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def health(self, msg):
+		"""See player's health and other vital stats"""
 		player = self.player
 		limbs = {name: condition * 100 for name, condition in player.limbs.items() if condition < 1}
 		limbs_str = ", ".join("{} {:.0f}%".format(name, condition) for name, condition in limbs.items())
@@ -345,6 +337,7 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def info(self, msg):
+		"""See player's weight, location and other info"""
 		player = self.player
 
 		weight = int(player.weight)
@@ -367,6 +360,7 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def special(self, msg):
+		"""See player's S.P.E.C.I.A.L. and current bonuses"""
 		player = self.player
 		names = "STR", "PER", "END", "CHA", "INT", "AGL", "LCK"
 		display = []
@@ -383,6 +377,7 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def list_weapons(self, msg):
+		"""List all favorited weapon slots"""
 		favorites = [item for item in self.inventory.weapons if item.favorite]
 		favorites = {item.name: item for item in favorites}.values()
 		favorites.sort(key=lambda item: item.favorite_slot)
@@ -405,6 +400,7 @@ class PipBoy(ChannelPlugin):
 	@with_cooldown(60)
 	@needs_data
 	def list_chems(self, msg):
+		"""See a selection of chems the player is carrying"""
 		LIMIT = 5
 		chems = [item for item in self.inventory.aid if item.name.lower() in self.CHEMS]
 		if len(chems) > LIMIT:
@@ -420,6 +416,7 @@ class PipBoy(ChannelPlugin):
 	@op_only
 	@needs_data
 	def booze(self, msg):
+		"""Use a random booze item"""
 		with self.use_item_lock:
 			inventory = self.inventory
 			booze = [item for item in inventory.aid if item.name.lower() in item.ALCOHOL_NAMES]
@@ -433,7 +430,7 @@ class PipBoy(ChannelPlugin):
 	@op_only
 	@needs_data
 	def use_chem(self, msg, *name):
-		"""Use a chem of given name"""
+		"""Use the named chem"""
 		name = ' '.join(name)
 		if name.lower() not in self.CHEMS:
 			self.reply(msg, "{} is not a chem we can use".format(name))
@@ -452,7 +449,7 @@ class PipBoy(ChannelPlugin):
 	@op_only
 	@needs_data
 	def use(self, msg, index):
-		"""Use an item from quickslot"""
+		"""Equip or use the item in the given favorite slot (1 to 12)"""
 		try:
 			index = int(index) - 1 # user interface is 1-indexed
 		except ValueError:
