@@ -308,6 +308,7 @@ class PipBoy(ChannelPlugin):
 				return
 			self.pippy.use_item(item.handle_id, version, block=False)
 			self.channel.msg("Used {}".format(item.name))
+			return True
 
 	@ChannelCommandHandler('health', 0)
 	@with_cooldown(60)
@@ -413,8 +414,8 @@ class PipBoy(ChannelPlugin):
 			))
 
 	@ChannelCommandHandler('booze', 0)
-	@op_only
 	@needs_data
+	@costs_points(25)
 	def booze(self, msg):
 		"""Use a random booze item"""
 		with self.use_item_lock:
@@ -424,11 +425,11 @@ class PipBoy(ChannelPlugin):
 				self.reply(msg, "Sorry, {} is trying to cut back (Not carrying any booze)".format(self.player.name))
 				return
 			item = random.choice(booze)
-			self.use_item(item)
+			return self.use_item(item)
 
 	@ChannelCommandHandler('usechem', 1)
-	@op_only
 	@needs_data
+	@costs_points(50)
 	def use_chem(self, msg, *name):
 		"""Use the named chem"""
 		name = ' '.join(name)
@@ -439,15 +440,16 @@ class PipBoy(ChannelPlugin):
 			matching = [item for item in self.inventory.aid if item.name.lower() == name.lower()]
 			if not matching:
 				self.reply(msg, "{} is not carrying any {}".format(self.player.name, name))
+				return
 			if len(matching) > 1:
 				self.logger.warning("Carrying multiple copies of chem named {!r}: {}".format(name, matching))
 				matching = matching[0]
 			item, = matching
-			self.use_item(item)
+			return self.use_item(item)
 
 	@ChannelCommandHandler('use', 1)
-	@op_only
 	@needs_data
+	@costs_points(50)
 	def use(self, msg, index):
 		"""Equip or use the item in the given favorite slot (1 to 12)"""
 		try:
@@ -472,7 +474,7 @@ class PipBoy(ChannelPlugin):
 			if item.equipped:
 				self.reply(msg, "Sorry, you can't equip something that's already equipped")
 				return
-			self.use_item(item)
+			return self.use_item(item)
 
 	@Handler(command='PRIVMSG', payload=POLL_RESPONSE)
 	@drop_client_arg
@@ -482,4 +484,4 @@ class PipBoy(ChannelPlugin):
 		assert match, "handler responded for non-matching message: {!r}".format(msg.payload)
 		slot, = match.groups()
 		slot = int(slot)
-		self.use(msg, slot)
+		self.use(msg, slot, free=True)
