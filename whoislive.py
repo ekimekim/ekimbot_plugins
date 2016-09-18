@@ -27,12 +27,14 @@ class WhoIsLive(ClientPlugin):
 		self.api = twitch.TwitchClient()
 
 	@CommandHandler("live", 0)
-	def whoislive(self, msg):
+	def whoislive(self, msg, *channels):
 		"""List all currently live streamers from follow list"""
 		found = []
 		errors = False
 		try:
-			for name, channel in gtools.gmap_unordered(self.get_channel_if_live, self.following()):
+			if not channels:
+				channels = self.following()
+			for name, channel in gtools.gmap_unordered(self.get_channel_if_live, channels):
 				if not channel:
 					continue
 				found.append(name)
