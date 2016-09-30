@@ -7,6 +7,17 @@ from ekimbot.botplugin import ClientPlugin
 from ekimbot.commands import CommandHandler
 
 
+def encode_recursive(o, encoding='utf-8'):
+	if isinstance(o, unicode):
+		return o.encode(encoding)
+	elif isinstance(o, dict):
+		return {encode_recursive(k): encode_recursive(v) for k, v in o.items()}
+	elif isinstance(o, list):
+		return [encode_recursive(x) for x in o]
+	else:
+		return o
+
+
 class WhoIsLive(ClientPlugin):
 	"""Should be a client plugin for a client logged into twitch.
 	Upon request, will list all live channels out of the list of channels that config.target
@@ -54,7 +65,7 @@ class WhoIsLive(ClientPlugin):
 	def following(self):
 		"""Yields channel names that self.target is following"""
 		for result in self.api.get_all("follows", "users", self.target, "follows", "channels"):
-			yield result['channel']['name']
+			yield encode_recursive(result['channel']['name'])
 
 	def get_channel_if_live(self, name):
 		"""Returns an up-to-date channel object if channel is currently live, else None"""
@@ -62,4 +73,4 @@ class WhoIsLive(ClientPlugin):
 		channel = gevent.spawn(lambda: self.api.get("channels", name))
 		if stream.get().get("stream") is None:
 			return
-		return channel.get()
+		return encode_recursive(channel.get())
