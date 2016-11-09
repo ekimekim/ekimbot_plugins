@@ -50,7 +50,7 @@ class WhoIsLive(ClientPlugin):
 					continue
 				found.append(name)
 				if len(found) < self.config.limit:
-					self.reply(msg, "{name} is playing {game}: {status}".format(**channel))
+					self.reply(msg, "https://twitch.tv/{name} is playing {game}: {status}".format(**channel))
 		except Exception:
 			self.logger.exception("Error while checking who is live")
 			errors = True
