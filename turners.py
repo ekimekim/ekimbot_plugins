@@ -8,5 +8,9 @@ class TurnersCommand(ClientPlugin):
 
 	@CommandHandler('turners', 1)
 	def turners(self, msg, *args):
-		scale = hash(' '.join(args)) % 11
-		self.reply(msg, "{}? That's a lickability of about...{} turners.".format(' '.join(args), scale))
+		thing = ' '.join(args)
+		if any(thing.lower() in channel.users.users for channel in self.client.joined_channels):
+			self.reply(msg, "Hey, we don't do lickability of people!")
+			return
+		scale = hash(thing) % 11
+		self.reply(msg, "{}? That's a lickability of about...{} turners.".format(thing, scale))
