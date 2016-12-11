@@ -7,11 +7,10 @@ import time
 import gpippy
 import gevent.event
 import gevent.lock
-from girc import Handler
 from mrpippy.data import Player, Inventory
 
 from ekimbot.botplugin import ChannelPlugin
-from ekimbot.commands import ChannelCommandHandler
+from ekimbot.commands import ChannelCommandHandler, EkimbotHandler
 
 
 POLL_RESPONSE = re.compile(r'^Poll for .* has been closed. Winning option was Slot (\d+)$')
@@ -476,7 +475,7 @@ class PipBoy(ChannelPlugin):
 				return
 			return self.use_item(item)
 
-	@Handler(command='PRIVMSG', payload=POLL_RESPONSE)
+	@EkimbotHandler(command='PRIVMSG', payload=POLL_RESPONSE)
 	@drop_client_arg
 	@op_only
 	def respond_to_poll(self, msg, *args):

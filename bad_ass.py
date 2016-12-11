@@ -1,8 +1,8 @@
 
 import re
 
-from girc import Handler
 from ekimbot.botplugin import ClientPlugin
+from ekimbot.commands import EkimbotHandler
 
 
 class BadAssPlugin(ClientPlugin):
@@ -11,7 +11,7 @@ class BadAssPlugin(ClientPlugin):
 	name = 'bad_ass'
 	pattern = re.compile(r'(\w+)[-_](ass) (\w+)', re.IGNORECASE)
 
-	@Handler(command='PRIVMSG')
+	@EkimbotHandler(command='PRIVMSG')
 	def find_ass(self, client, msg):
 		for adjective, ass, noun in self.pattern.findall(msg.payload):
 			self.reply(msg, "{} {}-{}?".format(adjective, ass, noun))

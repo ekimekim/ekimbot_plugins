@@ -9,9 +9,9 @@ import time
 import gevent
 
 from ratelimit import DecayRateLimit, BlockingRateLimit
-from girc import Handler
 
 from ekimbot.botplugin import ClientPlugin
+from ekimbot.commands import EkimbotHandler
 from ekimbot.core_plugins.logalert import send
 from ekimbot.utils import pretty_interval
 
@@ -40,7 +40,8 @@ class NotifyPlugin(ClientPlugin):
 	def init(self):
 		self.pending = {}
 
-	@Handler(command='PRIVMSG')
+	# HACK: email is broken in all but one ekimbot source, so ignore master state
+	@EkimbotHandler(command='PRIVMSG', master=None)
 	def check_message(self, client, msg):
 		for regex, (timeout, email) in self.store['rules'].items():
 			if re.match(regex, msg.payload):

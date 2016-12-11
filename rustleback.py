@@ -3,8 +3,8 @@ import random
 
 import gevent
 
-from girc.handler import Handler
 from ekimbot.botplugin import ClientPlugin
+from ekimbot.commands import EkimbotHandler
 
 
 class RustleBackPlugin(ClientPlugin):
@@ -14,7 +14,7 @@ class RustleBackPlugin(ClientPlugin):
 		'max': 90,
 	}
 
-	@Handler(command='PRIVMSG', payload=lambda value: value.startswith('!rustle '))
+	@EkimbotHandler(command='PRIVMSG', payload=lambda value: value.startswith('!rustle '))
 	def rustle_back(self, client, msg):
 		if client.matches_nick(msg.payload[len('!rustle '):]):
 			interval = self.config.min + random.random() * (self.config.max - self.config.min)

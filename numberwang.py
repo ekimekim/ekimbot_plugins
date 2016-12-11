@@ -2,9 +2,8 @@
 import re
 from random import random
 
-from girc import Handler
 from ekimbot.botplugin import ClientPlugin
-from ekimbot.commands import CommandHandler
+from ekimbot.commands import CommandHandler, EkimbotHandler
 
 
 class NumberWang(ClientPlugin):
@@ -27,7 +26,7 @@ class NumberWang(ClientPlugin):
 		else:
 			self.active.add(target)
 
-	@Handler(command='PRIVMSG')
+	@EkimbotHandler(command='PRIVMSG')
 	def find_nums(self, client, msg):
 		targets = set(msg.sender if self.client.matches_nick(target) else target for target in msg.targets)
 		for target in targets:
