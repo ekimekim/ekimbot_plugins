@@ -48,6 +48,8 @@ class TellPlugin(ClientPlugin):
 		# a tell waiting at the next scheduled time.
 		# TODO evict old nicks that haven't been seen in ages
 		self.name_cache = {}
+		# We can't save namedtuples into JSON, so we do a conversion pass on init
+		self.tells = {sender: [Tell(*tell) for tell in tells] for sender, tells in self.tells.items()}
 
 	@property
 	def tells(self):
