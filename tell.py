@@ -144,8 +144,8 @@ class TellPlugin(ClientPlugin):
 			pending = [tell for tell in pending if tell.target != target]
 
 		if not removed:
-			removed = [tell for tell in pending if tell.text == text]
-			pending = [tell for tell in pending if tell.text != text]
+			removed = [tell for tell in pending if text in tell.text]
+			pending = [tell for tell in pending if text not in tell.text]
 
 		if not removed:
 			notice("Did not find any pending tells matching {!r}".format(text))
