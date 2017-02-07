@@ -1,12 +1,15 @@
 
+import functools
 import itertools
 
 import gevent
 import gtools
+import requests
 import twitch
 
 from ekimbot.botplugin import ClientPlugin
 from ekimbot.commands import CommandHandler
+from ekimbot.utils import reply_target
 
 
 def encode_recursive(o, encoding='utf-8'):
@@ -20,7 +23,17 @@ def encode_recursive(o, encoding='utf-8'):
 		return o
 
 
-class WhoIsLive(ClientPlugin):
+def requires_oauth(fn):
+	@functools.wraps(fn)
+	def wrapper(self, msg, *args):
+		if self.config.oauth is None or self.config.target is None:
+			self.reply(msg, "No twitch login configured")
+			return
+		return fn(self, msg, *args)
+	return wrapper
+
+
+class TwitchPlugin(ClientPlugin):
 	"""Should be a client plugin for a client logged into twitch.
 	Upon request, will list all live channels out of the list of channels that config.target
 	(default client.nick) is following.
@@ -28,19 +41,26 @@ class WhoIsLive(ClientPlugin):
 	name = 'whoislive'
 
 	defaults = {
-		'target': None, # None makes us use client.nick
+		'target': None, # None makes no args an error
 		'limit': 3,
+		'private_limit': 10,
+		'client_id': None,
+		'oauth': None, # if not none, can do follow actions
 	}
 
-	@property
-	def target(self):
-		return self.config.target if self.config.target is not None else self.client.nick
-
 	def init(self):
-		self.api = twitch.TwitchClient()
+		self.api = twitch.TwitchClient(oauth=self.config.oauth, client_id=self.config.client_id)
+
+	def limit(self, msg):
+		if msg.target == reply_target(self.client, msg):
+			# public channel
+			return self.config.limit
+		else:
+			# private message
+			return self.config.private_limit
 
 	@CommandHandler("live", 0)
-	def whoislive(self, msg, *channels):
+	def live(self, msg, *channels):
 		"""List currently live streamers
 
 		Specify list of channels, or list of all channels followed by a channel by prepending a ~
@@ -49,7 +69,12 @@ class WhoIsLive(ClientPlugin):
 		found = []
 		errors = False
 		if not channels:
-			channels = [self.target]
+			if self.config.target:
+				channels = ['~{}'.format(self.config.target)]
+			else:
+				self.reply(msg, "Please list some channels to check")
+				return
+		limit = self.limit(msg)
 		try:
 			# flatten iterators of follows and direct channel names into single iterable
 			# TODO this could be better parallelised so follow fetches happen in parallel
@@ -62,15 +87,15 @@ class WhoIsLive(ClientPlugin):
 				if not channel:
 					continue
 				found.append(name)
-				if len(found) < self.config.limit:
+				if len(found) < limit:
 					self.reply(msg, "https://twitch.tv/{name} is playing {game}: {status}".format(**channel))
 		except Exception:
 			self.logger.exception("Error while checking who is live")
 			errors = True
 		if errors:
 			self.reply(msg, "I had some issues talking to twitch, maybe try again later?")
-		elif len(found) >= self.config.limit:
-			found = found[self.config.limit - 1:]
+		elif len(found) >= limit:
+			found = found[limit - 1:]
 			self.reply(msg, "And also {}".format(', '.join(found)))
 		elif not found:
 			self.reply(msg, "No-one is live right now, sorry!")
@@ -87,3 +112,29 @@ class WhoIsLive(ClientPlugin):
 		if stream.get().get("stream") is None:
 			return
 		return encode_recursive(channel.get())
+
+	def _follow_op(self, msg, channels, method, op_name):
+		channels = sorted(list(set(channels)))
+		failures = {}
+		for channel in channels:
+			try:
+				self.api.request(method, 'users', self.config.target, 'follows', 'channels', channel, json=False)
+			except requests.HTTPError as e:
+				failures[channel] = str(e)
+		if len(failures) == 0:
+			self.reply(msg, "{}ed channels: {}".format(op_name, ' '.join(channels)))
+		elif len(failures) == 1:
+			(channel, error), = failures.items()
+			self.reply(msg, "failed to {} channel {}: {}".format(op_name, channel, error))
+		else:
+			self.reply(msg, "failed to {} channels: {}".format(op_name, ' '.join(sorted(failures))))
+
+	@CommandHandler("twitch follow", 1)
+	@requires_oauth
+	def follow(self, msg, *channels):
+		self._follow_op(msg, channels, 'PUT', 'follow')
+
+	@CommandHandler("twitch unfollow", 1)
+	@requires_oauth
+	def unfollow(self, msg, *channels):
+		self._follow_op(msg, channels, 'DELETE', 'unfollow')
