@@ -38,6 +38,7 @@ class LaunchSchedule(ClientPlugin):
 		'poll_interval': 3600,
 		'url': 'https://spaceflightnow.com/launch-schedule/',
 		'limit': 3, # limit on launch list
+		'channels': [], # channels to announce alerts
 	}
 
 	def init(self):
@@ -48,10 +49,17 @@ class LaunchSchedule(ClientPlugin):
 		while True:
 			try:
 				self.entries = self.update()
-				self.logger.info("Updated with {} entries".format(len(self.entries)))
-				self.logger.debug("Full info: {}".format(self.entries))
 			except Exception:
 				self.logger.warning("Failed to update", exc_info=True)
+			else:
+				self.logger.info("Updated with {} entries".format(len(self.entries)))
+				self.logger.debug("Full info: {}".format(self.entries))
+				# XXX This is a racey and error-prone way to do this, with bad accuracy,
+				# but it's good enough for now.
+				now = time()
+				for entry in self.entries:
+					if entry['time'] is not None and 0 <= (entry['time'] - now) <= self.config.poll_interval:
+						self.alert(entry)
 			gevent.sleep(self.config.poll_interval)
 
 	def format_list_entry(self, entry):
@@ -59,6 +67,13 @@ class LaunchSchedule(ClientPlugin):
 			until=(' ({})'.format(humanize(entry['time'] - time())) if entry['time'] is not None else ''),
 			**entry
 		)
+
+	def alert(self, entry):
+		if not self.client.is_master():
+			return
+		text = 'Upcoming launch: {}'.format(self.format_list_entry(entry))
+		for channel in self.config.channels:
+			self.client.channel(channel).msg(text)
 
 	@CommandHandler("launch list", 0)
 	def reply_list(self, msg, *args):
