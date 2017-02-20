@@ -35,6 +35,7 @@ class UpdatePlugin(ClientPlugin):
 
 		if target not in self.config.targets:
 			self.reply(msg, "No such update target: {}".format(target))
+			return
 		target_info = self.config.targets[target]
 		if isinstance(target_info, basestring):
 			target_dir = target_info
