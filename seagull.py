@@ -8,12 +8,15 @@ class SeagullCommand(ClientPlugin):
 	name = 'seagull'
 
 	@CommandHandler('seagull', 0)
-	def seagull(self, msg, *args):
-		out = "{"
+	def seagull(self, msg, openchar='{', closechar='}', *args):
+		if openchar == closechar:
+			self.reply(msg, "Can't make a flock out of only one character")
+			return
+		out = openchar
 		depth = 1
 		while depth:
-			c = '{' if random.random() * 20 > len(out) else '}'
-			if c == '{':
+			c = openchar if random.random() * 20 > len(out) else closechar
+			if c == openchar:
 				depth += 1
 			else:
 				depth -= 1
