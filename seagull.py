@@ -9,9 +9,6 @@ class SeagullCommand(ClientPlugin):
 
 	@CommandHandler('seagull', 0)
 	def seagull(self, msg, openchar='{', closechar='}', targetlen=20, *args):
-		if openchar == closechar:
-			self.reply(msg, "Can't make a flock out of only one character")
-			return
 		try:
 			targetlen = int(targetlen)
 		except ValueError:
@@ -30,12 +27,12 @@ class SeagullCommand(ClientPlugin):
 		out = openchar
 		depth = 1
 		while depth:
-			c = openchar if random.random() * targetlen > len(out) else closechar
-			if c == openchar:
+			if random.random() * targetlen > len(out):
+				out += openchar
 				depth += 1
 			else:
+				out += closechar
 				depth -= 1
-			out += c
 		if isinstance(out, unicode):
 			out = out.encode('utf-8')
 		self.reply(msg, out)
