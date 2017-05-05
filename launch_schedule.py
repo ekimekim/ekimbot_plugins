@@ -153,7 +153,9 @@ class LaunchSchedule(ClientPlugin):
 			entry['description'] = missdescrip.find(string=True).rstrip('[').strip()
 
 			entry['time'] = self.parse_time(entry['datestr'], entry['timestr'])
-			results.append(entry)
+
+			# Now that everything is parsed, encode it to utf8 for all later work/display.
+			results.append({k: (v.encode('utf8') if isinstance(v, unicode) else v) for k,v in entry.items()})
 
 		return results
 
