@@ -100,7 +100,7 @@ class TwitchPlugin(ClientPlugin):
 				channel, = found
 				self.reply(msg, self.format_channel(channel))
 			else:
-				self.reply(msg, "And also {}".format(', '.join(found['name'])))
+				self.reply(msg, "And also {}".format(', '.join(channel['name'] for channel in found)))
 		elif not found:
 			self.reply(msg, "No-one is live right now, sorry!")
 
