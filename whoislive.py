@@ -86,9 +86,9 @@ class TwitchPlugin(ClientPlugin):
 			for name, channel in gtools.gmap_unordered(self.get_channel_if_live, channels):
 				if not channel:
 					continue
-				found.append(name)
+				found.append(channel)
 				if len(found) < limit:
-					self.reply(msg, "https://twitch.tv/{name} is playing {game}: {status}".format(**channel))
+					self.reply(msg, self.format_channel(channel))
 		except Exception:
 			self.logger.exception("Error while checking who is live")
 			errors = True
@@ -96,9 +96,16 @@ class TwitchPlugin(ClientPlugin):
 			self.reply(msg, "I had some issues talking to twitch, maybe try again later?")
 		elif len(found) >= limit:
 			found = found[limit - 1:]
-			self.reply(msg, "And also {}".format(', '.join(found)))
+			if len(found) == 1:
+				channel, = found
+				self.reply(msg, self.format_channel(channel))
+			else:
+				self.reply(msg, "And also {}".format(', '.join(found['name'])))
 		elif not found:
 			self.reply(msg, "No-one is live right now, sorry!")
+
+	def format_channel(self, channel):
+		return "https://twitch.tv/{name} is playing {game}: {status}".format(**channel)
 
 	def following(self, target):
 		"""Yields channel names that target is following"""
