@@ -81,6 +81,10 @@ class InvestGame(ClientPlugin):
 			self.reply(msg, "{} has money in the following defunct funds: {}".format(target,
 				", ".join("{!r} (${})".format(short, funds[short][0]) for short in defunct),
 			))
+		total = sum(amount for amount, last_bust in funds.values())
+		self.reply(msg, "{} has ${:.2f} in total (plus {} of a cent)".format(
+			target, int(total * 100) / 100., (total * 100) % 1,
+		))
 
 
 	@CommandHandler("invest move", 3)
