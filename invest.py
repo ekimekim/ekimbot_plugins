@@ -70,7 +70,7 @@ class InvestGame(ClientPlugin):
 			if short not in funds:
 				continue
 			amount, last_bust = funds[short]
-			bust_str = " (last went bust at {} UTC)".format(time.strftime(last_bust)) if last_bust is not None else ""
+			bust_str = " (last went bust at {} UTC)".format(time.strftime('%F %T', time.gmtime(last_bust))) if last_bust is not None else ""
 			self.reply(msg, "{target} has ${amount:.2f} in {name}{bust_str}".format(
 				target=target, amount=amount, name=name, bust_str=bust_str,
 			))
