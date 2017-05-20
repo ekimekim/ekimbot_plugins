@@ -186,9 +186,9 @@ class InvestGame(ClientPlugin):
 
 		for name, short, rate, risk in self.FUNDS:
 			this_period = period
-			rate_sec = rate / 86400
-			risk_sec = risk / 86400
-			income_sec = self.BASE_INCOME / 86400
+			rate_sec = rate / 86400.
+			risk_sec = risk / 86400.
+			income_sec = self.BASE_INCOME / 86400.
 
 			if short in funds:
 				amount, last_bust = funds[short]
