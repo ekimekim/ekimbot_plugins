@@ -1,5 +1,6 @@
 
 import os
+import subprocess
 import time
 
 from ekimbot.botplugin import ClientPlugin
@@ -20,7 +21,8 @@ class Uptime(ClientPlugin):
 	@classmethod
 	def get_process_start_time(cls):
 		if cls._process_start_time is None:
-			cls._process_start_time = os.stat('/proc/self').st_ctime
+			# I don't want to do a ps every time, this introduces some uncertainty but close enough
+			cls._process_start_time = time.time() - float(subprocess.check_output(['ps', '-o', 'etimes=', str(os.getpid())]))
 		return cls._process_start_time
 
 	@CommandHandler('uptime', 0)
