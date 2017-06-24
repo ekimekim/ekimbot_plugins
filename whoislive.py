@@ -59,8 +59,7 @@ class TwitchPlugin(ClientPlugin):
 			# private message
 			return self.config.private_limit
 
-	@CommandHandler("live", 0)
-	def live(self, msg, *channels):
+	def _live(self, msg, *channels):
 		"""List currently live streamers
 
 		Specify list of channels, or list of all channels followed by a channel by prepending a ~
@@ -103,6 +102,10 @@ class TwitchPlugin(ClientPlugin):
 				self.reply(msg, "And also {}".format(', '.join(channel['name'] for channel in found)))
 		elif not found:
 			self.reply(msg, "No-one is live right now, sorry!")
+
+	# Hack to get a command alias. TODO better way.
+	twitch = CommandHandler("twitch", 0)(_live)
+	live = CommandHandler("live", 0)(_live)
 
 	def format_channel(self, channel):
 		return "https://twitch.tv/{name} is playing {game}: {status}".format(**channel)
