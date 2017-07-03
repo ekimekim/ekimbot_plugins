@@ -47,7 +47,7 @@ def _normalize_arg(arg):
 	digits = arg[2:] if arg.upper().startswith('U+') else arg
 	try:
 		return unichr(int(digits, 16))
-	except ValueError:
+	except (ValueError, OverflowError): # either bad int or bad range for unichr
 		pass
 	# is it a character name?
 	try:
