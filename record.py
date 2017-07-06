@@ -65,5 +65,14 @@ class RecordPlugin(ClientPlugin):
 		values.update(self.common_info)
 		values.update(bot_nick=self.client.nick)
 
-		msg_record = json.dumps(values, default=str)
+		try:
+			msg_record = json.dumps(values, default=str)
+		except UnicodeDecodeError:
+			# Somewhere in all that data, there's bytes that can't be encoded to utf-8.
+			# utf-8 is almost certainly the more correct encoding for being able to read
+			# the data sensically, but JSON forces us to pick an encoding, so in this case
+			# we have to fall back to an encoding that can (probably incorrectly) encode
+			# all possible byte strings.
+			values.update(_encoding='latin-1')
+			msg_record = json.dumps(values, default=str, encoding='latin-1')
 		self.file.write('{}\n'.format(msg_record))
