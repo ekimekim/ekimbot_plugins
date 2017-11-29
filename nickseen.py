@@ -66,7 +66,7 @@ class NickSeen(ClientPlugin):
 				try:
 					msg = json.loads(line)
 				except Exception:
-					self.logger.warning('Failed to parse line {} from message record file {}, dropping'.format(i, filepath), exc_info=True)
+					self.logger.info('Failed to parse line {} from message record file {}, dropping'.format(i, filepath), exc_info=True)
 					continue
 				# filter for privmsgs from this hostname only
 				if msg['command'] not in ('PRIVMSG', 'NOTICE') or msg['hostname'] != self.client.hostname:
@@ -75,7 +75,7 @@ class NickSeen(ClientPlugin):
 				good = True
 				for key in ('target', 'sender', 'payload', 'received_at'):
 					if key not in msg:
-						self.logger.warning("Missing required key {} in line {} from message record file {}, dropping".format(key, i, filepath))
+						self.logger.info("Missing required key {} in line {} from message record file {}, dropping".format(key, i, filepath))
 						good = False
 						break
 				if not good:
