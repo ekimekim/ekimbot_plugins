@@ -99,6 +99,7 @@ class NickSeen(ClientPlugin):
 
 	def update_indices(self, channel, nick, timestamp, text):
 		channel = self.client.normalize_channel(channel)
+		nick = nick.lower()
 		first = self.first_index.setdefault(channel, {})
 		last = self.last_index.setdefault(channel, {})
 		# update first unless nick is already present and timestamp is older
@@ -151,10 +152,10 @@ class NickSeen(ClientPlugin):
 			return
 		index = index[channel]
 
-		if nick not in index:
+		if nick.lower() not in index:
 			self.reply(msg, "I've never heard of this {!r} person. Are you sure they're real?".format(nick))
 			return
-		timestamp, text = index[nick]
+		timestamp, text = index[nick.lower()]
 
 		self.reply(msg, "[{timestr}] <{nick}> {text}".format(
 			nick=nick, text=text,
