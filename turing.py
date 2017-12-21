@@ -20,8 +20,9 @@ class Turing(ClientPlugin):
 
 	defaults = {
 		'timeout': 10,
-		'max_tape_size': 10000,
+		'max_tape_size': 100000,
 		'steps_before_yield': 100,
+		'max_tape_output_size': 50,
 	}
 
 	@CommandHandler('turing', 3)
@@ -38,6 +39,9 @@ class Turing(ClientPlugin):
 			E: Erase tape at current position (ie. write a blank symbol)
 			N: Do nothing
 		The machine will run until a state and symbol matching no rule is reached.
+
+		Example: This example will go right until it hits z, then go left until it hits x, then stop.
+		x,y,y,y,z 2 r r,y,R1,r l,y,L1,l r,z,L1,l
 		"""
 
 		tape = tape.split(',')
@@ -78,6 +82,17 @@ class Turing(ClientPlugin):
 			self.reply(msg, "Turing machine ran for {machine.step} steps then timed out".format(machine=machine))
 		else:
 			self.reply(msg, "Turing machine ran for {machine.step} steps then halted with state {machine.state} on symbol {machine.current_symbol}".format(machine=machine))
+
+		tape_as_str = machine.tape_as_str()
+		if len(tape_as_str) < self.config.max_tape_output_size:
+			self.reply(msg, "Final tape state: {}".format(tape_as_str))
+		else:
+			tape_size = max(machine.tape) - min(machine.tape) if machine.tape else 0
+			self.reply(msg,
+				"Final tape size was {}, and is too large to display (would take {} characters, max allowed {})".format(
+					tape_size, len(tape_as_str), self.config.max_tape_output_size,
+				)
+			)
 
 
 class TuringMachine(object):
@@ -121,3 +136,11 @@ class TuringMachine(object):
 			if i and steps_before_yield and i % steps_before_yield == 0:
 				gevent.idle()
 			self.run_step()
+
+	def tape_as_str(self):
+		if not self.tape:
+			return ""
+		parts = []
+		for pos in xrange(min(self.tape), max(self.tape) + 1):
+			parts.append(self.tape.get(pos, ''))
+		return ','.join(parts)
