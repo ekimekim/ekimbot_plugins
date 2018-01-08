@@ -9,6 +9,17 @@ from ekimbot.botplugin import ClientPlugin
 from ekimbot.commands import CommandHandler, EkimbotHandler
 
 
+def recursive_to_str(x, encoding):
+	if isinstance(x, unicode):
+		return x.encode(encoding)
+	if isinstance(x, list):
+		return [recursive_to_str(i, encoding) for i in x]
+	if isinstance(x, dict):
+		return {recursive_to_str(k, encoding): recursive_to_str(v, encoding)
+		        for k, v in x.items()}
+	return x
+
+
 class NickSeen(ClientPlugin):
 	"""Maintains an index of when a nick was first or last seen based on logs.
 	Matches on client hostname and channel it was requested in.
@@ -68,6 +79,8 @@ class NickSeen(ClientPlugin):
 				except Exception:
 					self.logger.info('Failed to parse line {} from message record file {}, dropping'.format(i, filepath), exc_info=True)
 					continue
+				encoding = msg.get('_encoding', 'utf-8')
+				msg = recursive_to_str(msg, encoding)
 				# filter for privmsgs from this hostname only
 				if msg['command'] not in ('PRIVMSG', 'NOTICE') or msg['hostname'] != self.client.hostname:
 					continue
