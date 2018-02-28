@@ -10,7 +10,7 @@ from ekimbot.commands import EkimbotHandler
 class Gerhard(ClientPlugin):
 	name = 'gerhard'
 
-	FINE_REGEX = "([^a-zA-Z]|^)everything('?s| is) fine([^a-zA-Z]|$)"
+	FINE_REGEX = ".*([^a-zA-Z]|^)everything('?s| is) fine([^a-zA-Z]|$)"
 	last_fire = None
 
 	defaults = {
