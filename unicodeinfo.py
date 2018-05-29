@@ -1,7 +1,7 @@
 
-import unicodedata
+import random
 
-import ucd
+import uninames
 
 from ekimbot.botplugin import ClientPlugin
 from ekimbot.commands import CommandHandler
@@ -10,15 +10,8 @@ from ekimbot.commands import CommandHandler
 class UnicodeInfo(ClientPlugin):
 	name = 'unicode_info'
 
-	defaults = {
-		'ucd_cache': None
-	}
-
-	ucd = None
-
 	def init(self):
-		if self.config.ucd_cache:
-			self.ucd = ucd.UCD.from_cache(self.config.ucd_cache)
+		self.uninames = uninames.UnicodeNames(self.config.uninames)
 
 	@CommandHandler('unicode', 1)
 	def unicode_info(self, msg, *args):
@@ -46,28 +39,22 @@ class UnicodeInfo(ClientPlugin):
 				))
 			return
 
-		name, category = self.get_info(char)
+		names = [name for name, value in self.uninames.items() if value == ord(char)]
+		if not names:
+			names = ['UNKNOWN']
+		name = random.choice(names)
+		names.remove(name)
 
 		reply = (
-			"U+{ord:04X} {name!r}[{category}] ({url})"
+			"U+{ord:04X} {name!r} ({url})"
 		).format(
 			ord=ord(char),
 			name=name,
-			category=category,
 			url='https://www.fileformat.info/info/unicode/char/{:x}/index.htm'.format(ord(char)),
 		)
 		self.reply(msg, reply)
-
-	def get_info(self, char):
-		if self.ucd:
-			try:
-				cp = self.ucd.by_char(char)
-			except KeyError:
-				return 'UNKNOWN', '??'
-			return cp.name, cp.category
-		else:
-			return unicodedata.name(char, 'UNKNOWN'), unicodedata.category(char)
-
+		if names:
+			self.reply(msg, "Also known as: {}".format(", ".join(names)))
 
 	def _normalize_arg(self, arg):
 		"""Normalize unicode_info() arg to a single char if possible, otherwise raise ValueError."""
@@ -85,16 +72,10 @@ class UnicodeInfo(ClientPlugin):
 		else:
 			if len(char) == 1:
 				return char
-		# is it a character name? fast lookup first
+		# is it a character name?
 		try:
-			return unicodedata.lookup(arg)
+			return unichr(self.uninames.lookup(arg))
 		except KeyError:
 			pass
-		# now slower, more extensive lookup
-		if self.ucd:
-			try:
-				return unichr(self.ucd.by_name(arg).value)
-			except (KeyError, ValueError):
-				pass
 		# otherwise
 		raise ValueError
